@@ -56,10 +56,21 @@ class Country(Place):
     def __unicode__(self):
         return force_unicode(self.name)
 
+class RegionManager(models.GeoManager):
+
+    def get_query_set(self):
+        """
+        Load the region's parent hierarchy in the same query, by default
+        """
+        qs = super(RegionManager, self).get_query_set()
+        return qs.select_related('country')
+
 class Region(Place):
     name_std = models.CharField(max_length=200, db_index=True, verbose_name="standard name")
     code = models.CharField(max_length=200, db_index=True)
     country = models.ForeignKey(Country)
+
+    objects = RegionManager()
 
     @property
     def parent(self):
@@ -68,10 +79,21 @@ class Region(Place):
     def full_code(self):
         return ".".join([self.parent.code, self.code])
 
+class SubregionManager(models.GeoManager):
+
+    def get_query_set(self):
+        """
+        Load the subregion's parent hierarchy in the same query, by default
+        """
+        qs = super(RegionManager, self).get_query_set()
+        return qs.select_related('region__country')
+
 class Subregion(Place):
     name_std = models.CharField(max_length=200, db_index=True, verbose_name="standard name")
     code = models.CharField(max_length=200, db_index=True)
     region = models.ForeignKey(Region)
+
+    objects = SubregionManager()
 
     @property
     def parent(self):
@@ -79,6 +101,15 @@ class Subregion(Place):
 
     def full_code(self):
         return ".".join([self.parent.parent.code, self.parent.code, self.code])
+
+class CityManager(models.GeoManager):
+
+    def get_query_set(self):
+        """
+        Load the city's parent hierarchy in the same query, by default.
+        """
+        qs = super(CityManager, self).get_query_set()
+        return qs.select_related('subregion__region__country')
 
 class City(Place):
     name_std = models.CharField(max_length=200, db_index=True, verbose_name="standard name")
@@ -91,6 +122,8 @@ class City(Place):
     kind = models.CharField(max_length=10) # http://www.geonames.org/export/codes.html
     timezone = models.CharField(max_length=40) 
 
+    objects = CityManager()
+
     class Meta:
         verbose_name_plural = "cities"
 
@@ -98,11 +131,22 @@ class City(Place):
     def parent(self):
         return self.region
 
+class DistrictManager(models.GeoManager):
+
+    def get_query_set(self):
+        """
+        Load the district's parent hierarchy in the same query, by default.
+        """
+        qs = super(DistrictManager, self).get_query_set()
+        return qs.select_related('city__subregion__region__country')
+
 class District(Place):
     name_std = models.CharField(max_length=200, db_index=True, verbose_name="standard name")
     location = models.PointField()
     population = models.IntegerField()
     city = models.ForeignKey(City)
+
+    objects = DistrictManager()
 
     @property
     def parent(self):
